@@ -1,0 +1,81 @@
+{
+    "wifi": {
+        "ssid": "SSID",
+        "pass": "********"
+    },
+    "mqtt": {
+        "host": "mqtt.example.com",
+        "user": "mqtt_user",
+        "pass": "********",
+        "topic": {
+            "node": "hasp/%hostname%/%topic%",
+            "group": "hasp/plates/%topic%",
+            "broadcast": "hasp/broadcast/%topic%",
+            "hass": "homeassistant/status"
+        },
+        "port": 1883,
+        "name": "semaphore_01"
+    },
+    "telnet": {
+        "enable": 1,
+        "port": 23
+    },
+    "mdns": {
+        "enable": 1
+    },
+    "http": {
+        "enable": true,
+        "port": 80,
+        "user": "",
+        "pass": "********"
+    },
+    "gpio": {
+        "config": [
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0
+        ]
+    },
+    "debug": {
+        "ansi": 0,
+        "baud": 115200,
+        "tele": 300,
+        "host": "",
+        "port": 514,
+        "proto": 0,
+        "log": 0
+    },
+    "gui": {
+        "idle1": 60,
+        "idle2": 180,
+        "bckl": 21,
+        "bcklinv": 0,
+        "rotate": 1,
+        "cursor": 0,
+        "invert": 0,
+        "calibration": [
+            372,
+            3708,
+            317,
+            173,
+            3792,
+            3670,
+            3790,
+            180
+        ]
+    },
+    "hasp": {
+        "startpage": 1,
+        "startdim": 255,
+        "theme": 2,
+        "color1": "#00b6ff",
+        "color2": "#ff9962",
+        "font": "",
+        "pages": "/pages.jsonl"
+    }
+}

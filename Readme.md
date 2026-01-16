@@ -1,6 +1,3 @@
----
-
-````markdown
 # zabbix-openhasp-semaphore
 
 Visual monitoring indicator for Zabbix using openHASP devices.

@@ -7,6 +7,8 @@ Visual monitoring indicator for Zabbix using openHASP devices.
 («светофора»).
 
 ---
+![Zabbix openHASP semaphore](images/OpenHASP.png)
+
 
 ## 🇬🇧 English
 
@@ -31,6 +33,14 @@ The visual severity level matches what you see in the Zabbix web interface.
 | 0–1             | OK / Information     | Green  |
 | 2–3             | Warning / Average    | Yellow |
 | 4–5             | High / Disaster      | Red    |
+
+---
+
+![Zabbix openHASP semaphore Warning](images/screenshot-01.png)  
+*Zabbix openHASP semaphore WARNING screen*
+
+![Zabbix openHASP semaphore NO DATA](images/screenshot-02.png)  
+*Zabbix openHASP semaphore NO DATA screen*
 
 ---
 

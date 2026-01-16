@@ -5,10 +5,13 @@ Visual monitoring indicator for Zabbix using openHASP devices.
 Проект предназначен для отображения общего состояния Zabbix
 на одном или нескольких экранах openHASP в виде цветового индикатора
 («светофора»).
+## Links
+
+- **openHASP:** https://www.openhasp.com
+- **Zabbix:** https://www.zabbix.com
 
 ---
 ![Zabbix openHASP semaphore](images/OpenHASP.png)
-
 
 ## 🇬🇧 English
 
@@ -38,6 +41,9 @@ The visual severity level matches what you see in the Zabbix web interface.
 
 ![Zabbix openHASP semaphore Warning](images/screenshot-01.png)  
 *Zabbix openHASP semaphore WARNING screen*
+
+![Zabbix openHASP semaphore Critical](images/screenshot-00.png)  
+*Zabbix openHASP semaphore Critical screen*
 
 ![Zabbix openHASP semaphore NO DATA](images/screenshot-02.png)  
 *Zabbix openHASP semaphore NO DATA screen*

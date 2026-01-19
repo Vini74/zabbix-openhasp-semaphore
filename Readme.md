@@ -126,10 +126,16 @@ Manual run:
 ./semafor.py
 ```
 
-Cron example:
+Cron example (using wrapper script):
 
 ```cron
-*/1 * * * * root /opt/semafor.py
+*/1 * * * * cd /path/to/project && ./run_semafor.sh
+```
+
+Or with explicit environment variables:
+
+```cron
+*/1 * * * * ZABBIX_URL=http://your-zabbix/api MQTT_BROKER=your-mqtt-broker python3 /path/to/semafor.py
 ```
 
 ---
@@ -253,10 +259,16 @@ nano .env
 ./semafor.py
 ```
 
-Через cron:
+Через cron (используя скрипт-обертку):
 
 ```cron
-*/1 * * * * root /opt/semafor.py
+*/1 * * * * cd /path/to/project && ./run_semafor.sh
+```
+
+Или с явным указанием переменных окружения:
+
+```cron
+*/1 * * * * ZABBIX_URL=http://your-zabbix/api MQTT_BROKER=your-mqtt-broker python3 /path/to/semafor.py
 ```
 
 ---

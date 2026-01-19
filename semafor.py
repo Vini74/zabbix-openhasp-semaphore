@@ -63,7 +63,7 @@ def api_call(method, params=None):
 
     headers = {
         "Content-Type": "application/json-rpc",
-        "Authorization": f"Bearer {ZABBIX_API_KEY}"
+        "Authorization": f"Bearer {ZABBIX_API_TOKEN}"
     }
 
     r = requests.post(

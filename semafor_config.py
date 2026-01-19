@@ -9,6 +9,10 @@ Handles loading settings from environment variables with default values.
 """
 
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 class SemaforConfig:

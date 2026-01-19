@@ -126,10 +126,10 @@ Manual run:
 ./semafor.py
 ```
 
-Cron example (using wrapper script):
+Cron example:
 
 ```cron
-*/1 * * * * cd /path/to/project && ./run_semafor.sh
+*/1 * * * * cd /path/to/project && python3 semafor.py
 ```
 
 Or with explicit environment variables:
@@ -259,10 +259,10 @@ nano .env
 ./semafor.py
 ```
 
-Через cron (используя скрипт-обертку):
+Через cron:
 
 ```cron
-*/1 * * * * cd /path/to/project && ./run_semafor.sh
+*/1 * * * * cd /path/to/project && python3 semafor.py
 ```
 
 Или с явным указанием переменных окружения:

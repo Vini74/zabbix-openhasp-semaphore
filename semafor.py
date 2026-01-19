@@ -17,21 +17,53 @@ semafor.py
 
 import requests
 import sys
+import os
+from dotenv import load_dotenv
 import json
 from datetime import datetime
 import paho.mqtt.publish as publish
-from semafor_config import semafor_config
+
+# ================== ENV ==================
+dotenv_loaded = load_dotenv()
 
 # ================== CONFIG ==================
-# Configuration is now loaded from semafor_config module
-# ============================================
+class SemaforConfig:
+    """Configuration class for zabbix-openhasp-semaphore"""
 
+    def __init__(self):
+        # Zabbix API Configuration
+        self.ZABBIX_URL = os.environ.get('ZABBIX_URL', 'http://127.0.0.1:8080/api_jsonrpc.php')
+        self.ZABBIX_API_TOKEN = os.environ.get('ZABBIX_API_TOKEN', 'YOUR_ZABBIX_API_TOKEN')
 
+        # MQTT Configuration
+        self.MQTT_BROKER = os.environ.get('MQTT_BROKER', 'mqtt.example.com')
+        self.MQTT_USER = os.environ.get('MQTT_USER', 'mqtt_user')
+        self.MQTT_PASS = os.environ.get('MQTT_PASS', 'mqtt_pass')
+
+        # openHASP Devices
+        devices_str = os.environ.get('OPENHASP_DEVICES', 'semaphore_01,semaphore_02,semaphore_03')
+        self.OPENHASP_DEVICES = [device.strip() for device in devices_str.split(',')]
+
+        # Ignore acknowledged problems
+        self.IGNORE_ACKNOWLEDGED = os.environ.get(
+            'IGNORE_ACKNOWLEDGED', 'True'
+        ).lower() == 'true'
+
+        # Debug mode
+        self.DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
+        
+semafor_config = SemaforConfig()            
+
+if semafor_config.DEBUG:
+    if dotenv_loaded:
+        print("[DEBUG] .env file loaded successfully", file=sys.stderr)
+    else:
+        print("[DEBUG] .env file not found or not loaded", file=sys.stderr)
+        
 def log(msg):
     """Отладочный вывод"""
     if semafor_config.DEBUG:
         print(f"[DEBUG] {msg}", file=sys.stderr)
-
 
 def api_call(method, params=None):
     """
@@ -63,7 +95,6 @@ def api_call(method, params=None):
         raise RuntimeError(data["error"])
 
     return data.get("result", [])
-
 
 def get_hosts_by_event(eventid):
     """
@@ -217,6 +248,8 @@ def publish_openhasp(color):
 
 if __name__ == "__main__":
     log("Start semafor.py")
+    # Load environment variables from .env file
+
     log(f"Ignore acknowledged problems: {semafor_config.IGNORE_ACKNOWLEDGED}")
 
     try:

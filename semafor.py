@@ -90,16 +90,18 @@ def get_max_problem_severity():
     - Определяем максимальный severity
     """
 
-    problems = api_call(
-        "problem.get",
-        {
-            "output": ["eventid", "severity", "name", "objectid"],
-            "source": 0,        # только триггеры
-            "object": 0,
-            "suppressed": False,
-            "acknowledged": False
-        }
-    )
+    problem_params = {
+        "output": ["eventid", "severity", "name", "objectid"],
+        "source": 0,        # только триггеры
+        "object": 0,
+        "suppressed": False
+    }
+
+    # Опционально игнорируем подтверждённые
+    if semafor_config.IGNORE_ACKNOWLEDGED:
+        problem_params["acknowledged"] = False
+
+    problems = api_call("problem.get", problem_params)
 
     max_sev = 0
     max_items = []
@@ -181,7 +183,7 @@ def publish_openhasp(color):
             f"{base}/jsonl",
             json.dumps({"page": 1, "id": 0, "bg_color": color}),
             hostname=semafor_config.MQTT_BROKER,
-            auth=auth,
+            auth=auth, # type: ignore
             retain=True
         )
 
@@ -190,7 +192,7 @@ def publish_openhasp(color):
             base,
             "idle off",
             hostname=semafor_config.MQTT_BROKER,
-            auth=auth,
+            auth=auth, # type: ignore
             retain=True
         )
 
@@ -204,7 +206,7 @@ def publish_openhasp(color):
                 "text": now
             }),
             hostname=semafor_config.MQTT_BROKER,
-            auth=auth,
+            auth=auth, # type: ignore
             retain=True
         )
 
@@ -215,6 +217,7 @@ def publish_openhasp(color):
 
 if __name__ == "__main__":
     log("Start semafor.py")
+    log(f"Ignore acknowledged problems: {semafor_config.IGNORE_ACKNOWLEDGED}")
 
     try:
         max_sev = get_max_problem_severity()

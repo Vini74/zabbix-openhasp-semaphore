@@ -32,6 +32,11 @@ class SemaforConfig:
         devices_str = os.environ.get('OPENHASP_DEVICES', 'semaphore_01,semaphore_02,semaphore_03')
         self.OPENHASP_DEVICES = [device.strip() for device in devices_str.split(',')]
 
+        # Ignore acknowledged problems
+        self.IGNORE_ACKNOWLEDGED = os.environ.get(
+            'IGNORE_ACKNOWLEDGED', 'True'
+        ).lower() == 'true'
+
         # Debug mode
         self.DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
 

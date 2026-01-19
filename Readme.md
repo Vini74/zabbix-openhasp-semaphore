@@ -80,22 +80,27 @@ pip install requests paho-mqtt
 
 ### Configuration
 
-All configuration is done inside the script:
+All configuration is done through environment variables. Create a `.env` file in the project root directory based on the `.env.example` template:
 
-```python
-ZABBIX_URL = "http://127.0.0.1:8080/api_jsonrpc.php"
-ZABBIX_API_TOKEN = "YOUR_ZABBIX_API_TOKEN"
+```bash
+# Copy the template
+cp .env.example .env
 
-MQTT_BROKER = "mqtt.example.com"
-MQTT_USER = "mqtt_user"
-MQTT_PASS = "mqtt_pass"
-
-OPENHASP_DEVICES = [
-    "semaphore_01",
-    "semaphore_02",
-    "semaphore_03"
-]
+# Edit the .env file with your settings
+nano .env
 ```
+
+The following environment variables are available:
+
+| Variable | Description | Default Value |
+|----------|-------------|---------------|
+| ZABBIX_URL | Zabbix API URL | http://127.0.0.1:8080/api_jsonrpc.php |
+| ZABBIX_API_TOKEN | Zabbix API token | YOUR_ZABBIX_API_TOKEN |
+| MQTT_BROKER | MQTT broker address | mqtt.example.com |
+| MQTT_USER | MQTT username | mqtt_user |
+| MQTT_PASS | MQTT password | mqtt_pass |
+| OPENHASP_DEVICES | Comma-separated list of openHASP devices | semaphore_01,semaphore_02,semaphore_03 |
+| DEBUG | Enable debug output (True/False) | True |
 
 Each device will receive identical status updates.
 
@@ -205,14 +210,27 @@ pip install requests paho-mqtt
 
 ### Настройка
 
-Все параметры задаются в коде:
+Все параметры задаются через переменные окружения. Создайте файл `.env` в корневой директории проекта на основе шаблона `.env.example`:
 
-```python
-OPENHASP_DEVICES = [
-    "semaphore_01",
-    "semaphore_02"
-]
+```bash
+# Скопируйте шаблон
+cp .env.example .env
+
+# Отредактируйте файл .env с вашими настройками
+nano .env
 ```
+
+Доступны следующие переменные окружения:
+
+| Переменная | Описание | Значение по умолчанию |
+|-----------|----------|-----------------------|
+| ZABBIX_URL | URL API Zabbix | http://127.0.0.1:8080/api_jsonrpc.php |
+| ZABBIX_API_TOKEN | Токен API Zabbix | YOUR_ZABBIX_API_TOKEN |
+| MQTT_BROKER | Адрес MQTT брокера | mqtt.example.com |
+| MQTT_USER | Имя пользователя MQTT | mqtt_user |
+| MQTT_PASS | Пароль MQTT | mqtt_pass |
+| OPENHASP_DEVICES | Список устройств openHASP (через запятую) | semaphore_01,semaphore_02,semaphore_03 |
+| DEBUG | Включить отладочный вывод (True/False) | True |
 
 Один и тот же статус отправляется на все устройства.
 

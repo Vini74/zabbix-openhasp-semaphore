@@ -20,32 +20,16 @@ import sys
 import json
 from datetime import datetime
 import paho.mqtt.publish as publish
+from semafor_config import semafor_config
 
 # ================== CONFIG ==================
-
-# Zabbix API
-ZABBIX_URL = "http://127.0.0.1:8080/api_jsonrpc.php"
-ZABBIX_API_TOKEN = "YOUR_ZABBIX_API_TOKEN"
-
-MQTT_BROKER = "mqtt.example.com"
-MQTT_USER =   "mqtt_user"
-MQTT_PASS =   "mqtt_pass"
-
-# Список openHASP устройств (можно добавлять сколько угодно)
-OPENHASP_DEVICES = [
-    "semaphore_01",
-    "semaphore_02",
-    "semaphore_03",
-]
-
-DEBUG = True
-
+# Configuration is now loaded from semafor_config module
 # ============================================
 
 
 def log(msg):
     """Отладочный вывод"""
-    if DEBUG:
+    if semafor_config.DEBUG:
         print(f"[DEBUG] {msg}", file=sys.stderr)
 
 
@@ -63,11 +47,11 @@ def api_call(method, params=None):
 
     headers = {
         "Content-Type": "application/json-rpc",
-        "Authorization": f"Bearer {ZABBIX_API_TOKEN}"
+        "Authorization": f"Bearer {semafor_config.ZABBIX_API_TOKEN}"
     }
 
     r = requests.post(
-        ZABBIX_URL,
+        semafor_config.ZABBIX_URL,
         json=payload,
         headers=headers,
         timeout=15
@@ -185,18 +169,18 @@ def publish_openhasp(color):
     """
     Отправка цвета и времени на ВСЕ openHASP устройства
     """
-    auth = {"username": MQTT_USER, "password": MQTT_PASS}
+    auth = {"username": semafor_config.MQTT_USER, "password": semafor_config.MQTT_PASS}
     now = datetime.now().strftime("%H:%M")
     text_color = "white" if color == "red" else "black"
 
-    for device in OPENHASP_DEVICES:
+    for device in semafor_config.OPENHASP_DEVICES:
         base = f"hasp/{device}/command"
 
         # Фон страницы
         publish.single(
             f"{base}/jsonl",
             json.dumps({"page": 1, "id": 0, "bg_color": color}),
-            hostname=MQTT_BROKER,
+            hostname=semafor_config.MQTT_BROKER,
             auth=auth,
             retain=True
         )
@@ -205,7 +189,7 @@ def publish_openhasp(color):
         publish.single(
             base,
             "idle off",
-            hostname=MQTT_BROKER,
+            hostname=semafor_config.MQTT_BROKER,
             auth=auth,
             retain=True
         )
@@ -219,7 +203,7 @@ def publish_openhasp(color):
                 "text_color": text_color,
                 "text": now
             }),
-            hostname=MQTT_BROKER,
+            hostname=semafor_config.MQTT_BROKER,
             auth=auth,
             retain=True
         )

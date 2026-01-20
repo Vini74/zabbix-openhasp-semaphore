@@ -247,7 +247,7 @@ def publish_openhasp(color: str):
                 topic,
                 payload if isinstance(payload, str) else json.dumps(payload),
                 hostname=semafor_config.MQTT_BROKER,
-                auth=auth,
+                auth=auth, # type: ignore
                 retain=True
             )
 

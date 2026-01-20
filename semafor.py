@@ -4,77 +4,137 @@
 """
 semafor.py
 
-Скрипт:
-- Получает текущие проблемы из Zabbix 7.x по API key
-- Определяет максимальный уровень серьёзности (severity)
-- Отправляет цветовую индикацию на несколько openHASP экранов через MQTT
-
-Цвета:
-- GREEN  : проблем нет или только Information
-- YELLOW : Warning / Average
-- RED    : High / Disaster
+- Получает активные проблемы из Zabbix 7.x по API token
+- Определяет максимальный severity
+- Отправляет индикацию на openHASP экраны через MQTT
 """
 
-import requests
-import sys
 import os
-from dotenv import load_dotenv
+import sys
 import json
+import requests
 from datetime import datetime
+from dotenv import load_dotenv
 import paho.mqtt.publish as publish
+from typing import Optional, Dict
+
 
 # ================== ENV ==================
+
 dotenv_loaded = load_dotenv()
 
 # ================== CONFIG ==================
+
 class SemaforConfig:
-    """Configuration class for zabbix-openhasp-semaphore"""
-
     def __init__(self):
-        # Zabbix API Configuration
-        self.ZABBIX_URL = os.environ.get('ZABBIX_URL', 'http://127.0.0.1:8080/api_jsonrpc.php')
-        self.ZABBIX_API_TOKEN = os.environ.get('ZABBIX_API_TOKEN', 'YOUR_ZABBIX_API_TOKEN')
+        # Zabbix
+        self.ZABBIX_URL = os.environ.get(
+            "ZABBIX_URL",
+            "http://127.0.0.1:8080/api_jsonrpc.php"
+        )
+        self.ZABBIX_API_TOKEN = os.environ.get("ZABBIX_API_TOKEN", "")
 
-        # MQTT Configuration
-        self.MQTT_BROKER = os.environ.get('MQTT_BROKER', 'mqtt.example.com')
-        self.MQTT_USER = os.environ.get('MQTT_USER', 'mqtt_user')
-        self.MQTT_PASS = os.environ.get('MQTT_PASS', 'mqtt_pass')
+        # MQTT
+        self.MQTT_BROKER = os.environ.get("MQTT_BROKER", "mqtt.example.com")
+        self.MQTT_USER = os.environ.get("MQTT_USER", "")
+        self.MQTT_PASS = os.environ.get("MQTT_PASS", "")
 
-        # openHASP Devices
-        devices_str = os.environ.get('OPENHASP_DEVICES', 'semaphore_01,semaphore_02,semaphore_03')
-        self.OPENHASP_DEVICES = [device.strip() for device in devices_str.split(',')]
+        # Behaviour
+        self.DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
+        self.IGNORE_ACKNOWLEDGED = (
+            os.environ.get("IGNORE_ACKNOWLEDGED", "true").lower() == "true"
+        )
 
-        # Ignore acknowledged problems
-        self.IGNORE_ACKNOWLEDGED = os.environ.get(
-            'IGNORE_ACKNOWLEDGED', 'True'
-        ).lower() == 'true'
-
-        # Debug mode
-        self.DEBUG = os.environ.get('DEBUG', 'True').lower() == 'true'
-        
-semafor_config = SemaforConfig()            
+semafor_config = SemaforConfig()
 
 if semafor_config.DEBUG:
-    if dotenv_loaded:
-        print("[DEBUG] .env file loaded successfully", file=sys.stderr)
-    else:
-        print("[DEBUG] .env file not found or not loaded", file=sys.stderr)
-        
-def log(msg):
-    """Отладочный вывод"""
+    print(f"[DEBUG] .env loaded: {dotenv_loaded}", file=sys.stderr)
+
+# ================== LOG ==================
+
+def log(msg: str):
     if semafor_config.DEBUG:
         print(f"[DEBUG] {msg}", file=sys.stderr)
 
-def api_call(method, params=None):
-    """
-    Универсальный вызов Zabbix API (7.x)
-    Авторизация выполняется через API key в HTTP заголовке
-    """
+# ================== openHASP TEMPLATES ==================
+
+OPENHASP_TEMPLATES = {
+    "default": [
+        lambda base, color, now, text_color: (
+            f"{base}/jsonl",
+            {"page": 1, "id": 0, "bg_color": color}
+        ),
+        lambda base, color, now, text_color: (
+            base,
+            "idle off"
+        ),
+    ],
+
+    "with_time": [
+        lambda base, color, now, text_color: (
+            f"{base}/jsonl",
+            {"page": 1, "id": 0, "bg_color": color}
+        ),
+        lambda base, color, now, text_color: (
+            base,
+            "idle off"
+        ),
+        lambda base, color, now, text_color: (
+            f"{base}/jsonl",
+            {
+                "page": 1,
+                "id": 2,
+                "text_color": text_color,
+                "text": now
+            }
+        ),
+    ],
+
+    "widgets": [
+        lambda base, color, now, text_color: (
+            f"{base}/jsonl",
+            {"page": 1, "id": 31, "bg_color": color}
+        ),
+        lambda base, color, now, text_color: (
+            base,
+            "idle off"
+        ),
+        lambda base, color, now, text_color: (
+            f"{base}/jsonl",
+            {
+                "page": 1,
+                "id": 5,
+                "text_color": text_color,
+                "text": now
+            }
+        ),
+    ],
+}
+
+# ================== openHASP DEVICES ==================
+
+OPENHASP_DEVICES = {
+    "semaphore_01": "with_time",
+    "semaphore_02": "widgets",
+    "semaphore_03": "default",
+    "wall_panel":  "default",
+}
+
+# Проверка конфигурации на старте
+for dev, tpl in OPENHASP_DEVICES.items():
+    if tpl not in OPENHASP_TEMPLATES:
+        raise RuntimeError(
+            f"Device '{dev}' references unknown template '{tpl}'"
+        )
+
+# ================== ZABBIX API ==================
+
+def api_call(method: str, params: Optional[Dict] = None):
     payload = {
         "jsonrpc": "2.0",
         "method": method,
         "params": params or {},
-        "id": 10
+        "id": 1
     }
 
     headers = {
@@ -89,172 +149,118 @@ def api_call(method, params=None):
         timeout=15
     )
     r.raise_for_status()
-    data = r.json()
 
+    data = r.json()
     if "error" in data:
         raise RuntimeError(data["error"])
 
     return data.get("result", [])
 
-def get_hosts_by_event(eventid):
-    """
-    Получение хостов, связанных с событием (event)
-    Нужно для корректного отображения имени узла
-    """
-    result = api_call(
-        "event.get",
-        {
-            "eventids": [str(eventid)],
-            "selectHosts": ["host", "name", "status"]
-        }
-    )
+# ================== CORE LOGIC ==================
 
-    return result[0].get("hosts", []) if result else []
-
-
-def get_max_problem_severity():
-    """
-    Основная логика:
-    - Берём все активные проблемы
-    - Игнорируем disabled триггеры
-    - Игнорируем disabled хосты
-    - Определяем максимальный severity
-    """
-
+def get_max_problem_severity() -> int:
     problem_params = {
         "output": ["eventid", "severity", "name", "objectid"],
-        "source": 0,        # только триггеры
+        "source": 0,
         "object": 0,
         "suppressed": False
     }
 
-    # Опционально игнорируем подтверждённые
     if semafor_config.IGNORE_ACKNOWLEDGED:
         problem_params["acknowledged"] = False
 
     problems = api_call("problem.get", problem_params)
+    if not problems:
+        return 0
+
+    trigger_ids = list({p["objectid"] for p in problems})
+
+    triggers = api_call(
+        "trigger.get",
+        {
+            "triggerids": trigger_ids,
+            "output": ["triggerid", "status"],
+            "selectHosts": ["host", "name", "status"]
+        }
+    )
+
+    trigger_map = {t["triggerid"]: t for t in triggers}
 
     max_sev = 0
     max_items = []
 
     for p in problems:
         sev = int(p["severity"])
+        trig = trigger_map.get(p["objectid"])
 
-        # Проверяем, что триггер включён
-        triggers = api_call(
-            "trigger.get",
-            {
-                "triggerids": [p["objectid"]],
-                "output": ["triggerid", "status"]
-            }
-        )
-
-        # Если все триггеры выключены — пропускаем
-        if triggers and not any(int(t["status"]) == 0 for t in triggers):
+        if not trig:
             continue
 
-        # Получаем хосты через событие
-        hosts = get_hosts_by_event(p["eventid"])
+        # trigger disabled
+        if int(trig["status"]) != 0:
+            continue
 
-        # Fallback: получаем хосты через триггер
-        if not hosts and triggers:
-            trig_hosts = api_call(
-                "trigger.get",
-                {
-                    "triggerids": [p["objectid"]],
-                    "selectHosts": ["host", "name", "status"],
-                    "output": "extend"
-                }
-            )
-            if trig_hosts:
-                hosts = trig_hosts[0].get("hosts", [])
+        hosts = trig.get("hosts", [])
 
-        # Если все хосты выключены — пропускаем
+        # all hosts disabled
         if hosts and not any(int(h["status"]) == 0 for h in hosts):
             continue
 
-        # Обновляем максимум
         if sev > max_sev:
             max_sev = sev
             max_items = [(p, hosts)]
         elif sev == max_sev:
             max_items.append((p, hosts))
 
-    # Подробный вывод в отладке
     if max_items:
         log("Problems with MAX severity:")
         for p, hosts in max_items:
             log(f"Severity: {p['severity']}")
             log(f"Problem : {p['name']}")
-
-            if not hosts:
-                log(" Host : <NOT RESOLVED>")
-            else:
-                for h in hosts:
-                    log(f" Host node : {h['host']} | Visible : {h['name']}")
-
+            for h in hosts:
+                log(f" Host : {h['host']} ({h['name']})")
             log("-" * 60)
 
     return max_sev
 
+# ================== MQTT ==================
 
-def publish_openhasp(color):
-    """
-    Отправка цвета и времени на ВСЕ openHASP устройства
-    """
-    auth = {"username": semafor_config.MQTT_USER, "password": semafor_config.MQTT_PASS}
+def publish_openhasp(color: str):
+    auth = {
+        "username": semafor_config.MQTT_USER,
+        "password": semafor_config.MQTT_PASS
+    }
+
     now = datetime.now().strftime("%H:%M")
     text_color = "white" if color == "red" else "black"
 
-    for device in semafor_config.OPENHASP_DEVICES:
+    for device, template_name in OPENHASP_DEVICES.items():
         base = f"hasp/{device}/command"
+        template = OPENHASP_TEMPLATES[template_name]
 
-        # Фон страницы
-        publish.single(
-            f"{base}/jsonl",
-            json.dumps({"page": 1, "id": 0, "bg_color": color}),
-            hostname=semafor_config.MQTT_BROKER,
-            auth=auth, # type: ignore
-            retain=True
-        )
+        for command in template:
+            topic, payload = command(
+                base, color, now, text_color
+            )
 
-        # Отключаем idle
-        publish.single(
-            base,
-            "idle off",
-            hostname=semafor_config.MQTT_BROKER,
-            auth=auth, # type: ignore
-            retain=True
-        )
+            publish.single(
+                topic,
+                payload if isinstance(payload, str) else json.dumps(payload),
+                hostname=semafor_config.MQTT_BROKER,
+                auth=auth,
+                retain=True
+            )
 
-        # Время
-        publish.single(
-            f"{base}/jsonl",
-            json.dumps({
-                "page": 1,
-                "id": 2,
-                "text_color": text_color,
-                "text": now
-            }),
-            hostname=semafor_config.MQTT_BROKER,
-            auth=auth, # type: ignore
-            retain=True
-        )
-
-        log(f"openHASP [{device}] updated: {color}")
-
+        log(f"openHASP [{device}] updated using template '{template_name}'")
 
 # ================== MAIN ==================
 
 if __name__ == "__main__":
     log("Start semafor.py")
-    # Load environment variables from .env file
-
-    log(f"Ignore acknowledged problems: {semafor_config.IGNORE_ACKNOWLEDGED}")
+    log(f"Ignore acknowledged: {semafor_config.IGNORE_ACKNOWLEDGED}")
 
     try:
         max_sev = get_max_problem_severity()
-        log(f"Max severity: {max_sev}")
 
         if max_sev >= 4:
             color = "red"

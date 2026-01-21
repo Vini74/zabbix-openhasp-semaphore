@@ -49,6 +49,9 @@ The visual severity level matches what you see in the Zabbix web interface.
 ![Zabbix openHASP semaphore Critical](images/screenshot-00.png)  
 *Zabbix openHASP semaphore — CRITICAL*
 
+![Zabbix openHASP widgets](images/screenshot-03.png)  
+*Zabbix openHASP semaphore — widgets*
+
 ![Zabbix openHASP semaphore NO DATA](images/screenshot-02.png)  
 *Zabbix openHASP semaphore — NO DATA*
 

@@ -5,13 +5,17 @@ Visual monitoring indicator for Zabbix using openHASP devices.
 Проект предназначен для отображения общего состояния Zabbix
 на одном или нескольких экранах openHASP в виде цветового индикатора
 («светофора»).
+
 ## Links
 
 - **openHASP:** https://www.openhasp.com
 - **Zabbix:** https://www.zabbix.com
 
 ---
+
 ![Zabbix openHASP semaphore](images/OpenHASP.png)
+
+---
 
 ## 🇬🇧 English
 
@@ -22,8 +26,8 @@ Visual monitoring indicator for Zabbix using openHASP devices.
 - Connects to **Zabbix 7.x** via **JSON-RPC API**
 - Analyzes current **active problems**
 - Determines the **maximum problem severity**
-- Sends the resulting status (green / yellow / red)
-  to one or multiple **openHASP** devices via **MQTT**
+- Converts severity into a visual state (**green / yellow / red**)
+- Sends the resulting state to one or more **openHASP** devices via **MQTT**
 
 The visual severity level matches what you see in the Zabbix web interface.
 
@@ -40,13 +44,13 @@ The visual severity level matches what you see in the Zabbix web interface.
 ---
 
 ![Zabbix openHASP semaphore Warning](images/screenshot-01.png)  
-*Zabbix openHASP semaphore WARNING screen*
+*Zabbix openHASP semaphore — WARNING*
 
 ![Zabbix openHASP semaphore Critical](images/screenshot-00.png)  
-*Zabbix openHASP semaphore Critical screen*
+*Zabbix openHASP semaphore — CRITICAL*
 
 ![Zabbix openHASP semaphore NO DATA](images/screenshot-02.png)  
-*Zabbix openHASP semaphore NO DATA screen*
+*Zabbix openHASP semaphore — NO DATA*
 
 ---
 
@@ -59,8 +63,20 @@ The visual severity level matches what you see in the Zabbix web interface.
   - `event.get`
   - fallback to `trigger.get` if needed
 - Host information is logged as:
-  - Technical host name
-  - Visible name (as in Zabbix UI)
+  - technical host name
+  - visible name (as shown in Zabbix UI)
+
+---
+
+### openHASP device handling
+
+- Device behavior is defined using **reusable templates**
+- A template describes a sequence of MQTT commands sent to the screen
+- Multiple devices can share the same template
+- Device-to-template mapping is defined **directly in the script**
+
+This allows different openHASP screens to display the same Zabbix state
+using different layouts or UI logic.
 
 ---
 
@@ -72,37 +88,35 @@ The visual severity level matches what you see in the Zabbix web interface.
 - MQTT broker
 
 Python dependencies:
+
 ```bash
-pip install requests paho-mqtt
+pip install requests paho-mqtt python-dotenv
 ````
 
 ---
 
 ### Configuration
 
-All configuration is done through environment variables. Create a `.env` file in the project root directory based on the `.env.example` template:
+Sensitive configuration is provided via environment variables.
+Create a `.env` file in the project root directory based on `.env.example`:
 
 ```bash
-# Copy the template
 cp .env.example .env
-
-# Edit the .env file with your settings
 nano .env
 ```
 
-The following environment variables are available:
+Available environment variables:
 
-| Variable | Description | Default Value |
-|----------|-------------|---------------|
-| ZABBIX_URL | Zabbix API URL | http://127.0.0.1:8080/api_jsonrpc.php |
-| ZABBIX_API_TOKEN | Zabbix API token | YOUR_ZABBIX_API_TOKEN |
-| MQTT_BROKER | MQTT broker address | mqtt.example.com |
-| MQTT_USER | MQTT username | mqtt_user |
-| MQTT_PASS | MQTT password | mqtt_pass |
-| OPENHASP_DEVICES | Comma-separated list of openHASP devices | semaphore_01,semaphore_02,semaphore_03 |
-| DEBUG | Enable debug output (True/False) | True |
+| Variable         | Description                      | Default Value                                                                  |
+| ---------------- | -------------------------------- | ------------------------------------------------------------------------------ |
+| ZABBIX_URL       | Zabbix API URL                   | [http://127.0.0.1:8080/api_jsonrpc.php](http://127.0.0.1:8080/api_jsonrpc.php) |
+| ZABBIX_API_TOKEN | Zabbix API token                 | YOUR_ZABBIX_API_TOKEN                                                          |
+| MQTT_BROKER      | MQTT broker address              | mqtt.example.com                                                               |
+| MQTT_USER        | MQTT username                    | mqtt_user                                                                      |
+| MQTT_PASS        | MQTT password                    | mqtt_pass                                                                      |
+| DEBUG            | Enable debug output (True/False) | True                                                                           |
 
-Each device will receive identical status updates.
+openHASP devices and their behavior templates are configured **inside the script**.
 
 ---
 
@@ -113,8 +127,9 @@ Each device will receive identical status updates.
 
    * disabled triggers
    * disabled hosts
-3. Find maximum severity
-4. Publish color and time to all openHASP devices via MQTT
+3. Determine the maximum severity
+4. Convert severity to a color state
+5. Publish MQTT commands to openHASP devices according to their templates
 
 ---
 
@@ -123,7 +138,7 @@ Each device will receive identical status updates.
 Manual run:
 
 ```bash
-./semafor.py
+python3 semafor.py
 ```
 
 Cron example:
@@ -132,7 +147,7 @@ Cron example:
 */1 * * * * cd /path/to/project && python3 semafor.py
 ```
 
-Or with explicit environment variables:
+With explicit environment variables:
 
 ```cron
 */1 * * * * ZABBIX_URL=http://your-zabbix/api MQTT_BROKER=your-mqtt-broker python3 /path/to/semafor.py
@@ -144,16 +159,16 @@ Or with explicit environment variables:
 
 Enable detailed output:
 
-```python
-DEBUG = True
+```env
+DEBUG=True
 ```
 
-This will log:
+Debug output includes:
 
-* Full API payloads (optional)
-* Detected problems
-* Associated hosts
-* Final severity decision
+* Zabbix API calls (high-level)
+* detected problems
+* associated hosts
+* final severity and color decision
 
 ---
 
@@ -166,10 +181,10 @@ This will log:
 * Подключается к **Zabbix 7.x** через **JSON-RPC API**
 * Анализирует текущие **активные проблемы**
 * Определяет **максимальный уровень серьёзности**
-* Отправляет итоговое состояние (green / yellow / red)
-  на один или несколько экранов **openHASP** через **MQTT**
+* Преобразует severity в цветовое состояние (**green / yellow / red**)
+* Отправляет итоговое состояние на экраны **openHASP** через **MQTT**
 
-Цвет полностью соответствует тому, что отображается в веб-интерфейсе Zabbix.
+Отображаемый цвет соответствует состоянию в веб-интерфейсе Zabbix.
 
 ---
 
@@ -188,14 +203,26 @@ This will log:
 * Только **активные проблемы**
 * **Отключённые триггеры игнорируются**
 * **Отключённые хосты игнорируются**
-* Привязка проблемы к хосту определяется через:
+* Привязка события к хостам определяется через:
 
   * `event.get`
   * резервно через `trigger.get`
-* В логах выводятся:
+* В логах отображаются:
 
-  * имя узла (host)
-  * видимое имя (Visible name)
+  * техническое имя хоста
+  * отображаемое имя (как в Zabbix UI)
+
+---
+
+### Работа с openHASP
+
+* Поведение экранов описывается через **шаблоны**
+* Шаблон — это последовательность MQTT-команд
+* Несколько устройств могут использовать один и тот же шаблон
+* Привязка устройств к шаблонам задаётся **в коде скрипта**
+
+Это позволяет легко менять внешний вид экранов
+без дублирования логики.
 
 ---
 
@@ -203,51 +230,49 @@ This will log:
 
 * Python 3.8+
 * Zabbix **7.x**
-* openHASP
+* openHASP устройства
 * MQTT брокер
 
 Зависимости Python:
 
 ```bash
-pip install requests paho-mqtt
+pip install requests paho-mqtt python-dotenv
 ```
 
 ---
 
 ### Настройка
 
-Все параметры задаются через переменные окружения. Создайте файл `.env` в корневой директории проекта на основе шаблона `.env.example`:
+Чувствительные параметры задаются через переменные окружения.
+Создайте файл `.env` на основе `.env.example`:
 
 ```bash
-# Скопируйте шаблон
 cp .env.example .env
-
-# Отредактируйте файл .env с вашими настройками
 nano .env
 ```
 
-Доступны следующие переменные окружения:
+Доступные переменные:
 
-| Переменная | Описание | Значение по умолчанию |
-|-----------|----------|-----------------------|
-| ZABBIX_URL | URL API Zabbix | http://127.0.0.1:8080/api_jsonrpc.php |
-| ZABBIX_API_TOKEN | Токен API Zabbix | YOUR_ZABBIX_API_TOKEN |
-| MQTT_BROKER | Адрес MQTT брокера | mqtt.example.com |
-| MQTT_USER | Имя пользователя MQTT | mqtt_user |
-| MQTT_PASS | Пароль MQTT | mqtt_pass |
-| OPENHASP_DEVICES | Список устройств openHASP (через запятую) | semaphore_01,semaphore_02,semaphore_03 |
-| DEBUG | Включить отладочный вывод (True/False) | True |
+| Переменная       | Описание           | Значение по умолчанию                                                          |
+| ---------------- | ------------------ | ------------------------------------------------------------------------------ |
+| ZABBIX_URL       | URL API Zabbix     | [http://127.0.0.1:8080/api_jsonrpc.php](http://127.0.0.1:8080/api_jsonrpc.php) |
+| ZABBIX_API_TOKEN | API-токен Zabbix   | YOUR_ZABBIX_API_TOKEN                                                          |
+| MQTT_BROKER      | Адрес MQTT брокера | mqtt.example.com                                                               |
+| MQTT_USER        | Пользователь MQTT  | mqtt_user                                                                      |
+| MQTT_PASS        | Пароль MQTT        | mqtt_pass                                                                      |
+| DEBUG            | Отладочный вывод   | True                                                                           |
 
-Один и тот же статус отправляется на все устройства.
+Список openHASP устройств и их шаблоны задаются в коде.
 
 ---
 
 ### Принцип работы
 
-1. Получение проблем из Zabbix
+1. Получение активных проблем из Zabbix
 2. Фильтрация отключённых объектов
 3. Определение максимального severity
-4. Отправка состояния в openHASP через MQTT
+4. Преобразование severity в цвет
+5. Отправка команд на openHASP через MQTT
 
 ---
 
@@ -256,7 +281,7 @@ nano .env
 Вручную:
 
 ```bash
-./semafor.py
+python3 semafor.py
 ```
 
 Через cron:
@@ -264,26 +289,6 @@ nano .env
 ```cron
 */1 * * * * cd /path/to/project && python3 semafor.py
 ```
-
-Или с явным указанием переменных окружения:
-
-```cron
-*/1 * * * * ZABBIX_URL=http://your-zabbix/api MQTT_BROKER=your-mqtt-broker python3 /path/to/semafor.py
-```
-
----
-
-### Отладка
-
-```python
-DEBUG = True
-```
-
-В этом режиме выводится:
-
-* информация по проблемам
-* хосты, вызвавшие срабатывание
-* итоговое решение по цвету
 
 ---
 

@@ -50,11 +50,25 @@ semafor_config = SemaforConfig()
 if semafor_config.DEBUG:
     print(f"[DEBUG] .env loaded: {dotenv_loaded}", file=sys.stderr)
 
+# ================== BACKLIGHT CONFIG ==================
+
+BACKLIGHT_DAY = 100      # Яркость днём (0-255)
+BACKLIGHT_NIGHT = 7     # Яркость ночью (0-255)
+BACKLIGHT_NIGHT_START = 21  # Начало ночного режима (час)
+BACKLIGHT_NIGHT_END = 10     # Конец ночного режима (час)
+
 # ================== LOG ==================
 
 def log(msg: str):
     if semafor_config.DEBUG:
         print(f"[DEBUG] {msg}", file=sys.stderr)
+
+
+def get_backlight_value() -> int:
+    """Определяет яркость подсветки в зависимости от времени суток."""
+    current_hour = datetime.now().hour
+    is_night = current_hour >= BACKLIGHT_NIGHT_START or current_hour < BACKLIGHT_NIGHT_END
+    return BACKLIGHT_NIGHT if is_night else BACKLIGHT_DAY
 
 # ================== openHASP TEMPLATES ==================
 
@@ -87,6 +101,10 @@ OPENHASP_TEMPLATES = {
                 "text_color": text_color,
                 "text": now
             }
+        ),
+        lambda base, color, now, text_color: (
+            f"{base}/backlight",
+            get_backlight_value()
         ),
     ],
 

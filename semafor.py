@@ -7,6 +7,7 @@ semafor.py
 - Получает активные проблемы из Zabbix 7.x по API token
 - Определяет максимальный severity
 - Отправляет индикацию на openHASP экраны через MQTT
+- Автоматически регулирует яркость экрана по времени восхода/заката
 """
 
 import os
@@ -16,6 +17,7 @@ import requests
 from datetime import datetime
 from dotenv import load_dotenv
 import paho.mqtt.publish as publish
+from suntime import Sun
 from typing import Optional, Dict
 
 
@@ -39,6 +41,11 @@ class SemaforConfig:
         self.MQTT_USER = os.environ.get("MQTT_USER", "")
         self.MQTT_PASS = os.environ.get("MQTT_PASS", "")
 
+        # Location (координаты для расчёта восхода/заката)
+        self.LATITUDE = float(os.environ.get("LATITUDE", "55.7558"))  # Москва
+        self.LONGITUDE = float(os.environ.get("LONGITUDE", "37.6173"))
+        self.TIMEZONE = os.environ.get("TIMEZONE", "Europe/Moscow")
+
         # Behaviour
         self.DEBUG = os.environ.get("DEBUG", "true").lower() == "true"
         self.IGNORE_ACKNOWLEDGED = (
@@ -50,12 +57,17 @@ semafor_config = SemaforConfig()
 if semafor_config.DEBUG:
     print(f"[DEBUG] .env loaded: {dotenv_loaded}", file=sys.stderr)
 
-# ================== BACKLIGHT CONFIG ==================
+# ================== SUNRISE/SUNSET CONFIG ==================
 
-BACKLIGHT_DAY = 100      # Яркость днём (0-255)
-BACKLIGHT_NIGHT = 7     # Яркость ночью (0-255)
-BACKLIGHT_NIGHT_START = 21  # Начало ночного режима (час)
-BACKLIGHT_NIGHT_END = 10     # Конец ночного режима (час)
+# Смещение в часах от восхода/заката для смены яркости
+# Положительное значение = после события, отрицательное = до события
+SUNRISE_OFFSET_HOURS = float(os.environ.get("SUNRISE_OFFSET_HOURS", "0.5"))  # Через 30 мин после восхода
+SUNSET_OFFSET_HOURS = float(os.environ.get("SUNSET_OFFSET_HOURS", "0.5"))    # Через 30 мин после заката
+
+# Яркость экрана (0-100)
+BRIGHTNESS_DAY = int(os.environ.get("BRIGHTNESS_DAY", "100"))    # Дневная яркость
+BRIGHTNESS_NIGHT = int(os.environ.get("BRIGHTNESS_NIGHT", "30")) # Ночная яркость
+
 
 # ================== LOG ==================
 
@@ -65,10 +77,49 @@ def log(msg: str):
 
 
 def get_backlight_value() -> int:
-    """Определяет яркость подсветки в зависимости от времени суток."""
-    current_hour = datetime.now().hour
-    is_night = current_hour >= BACKLIGHT_NIGHT_START or current_hour < BACKLIGHT_NIGHT_END
-    return BACKLIGHT_NIGHT if is_night else BACKLIGHT_DAY
+    """
+    Определяет яркость подсветки на основе времени восхода/заката.
+    
+    Использует библиотеку suntime для расчёта времени восхода и заката
+    для заданных координат. Применяет смещения для точной настройки.
+    """
+    from dateutil import tz
+    
+    sun = Sun(semafor_config.LATITUDE, semafor_config.LONGITUDE)
+    now = datetime.now()
+    local_tz = tz.gettz(semafor_config.TIMEZONE)
+    today = now.replace(tzinfo=local_tz)
+    
+    try:
+        sunrise = sun.get_sunrise_time(today)
+        sunset = sun.get_sunset_time(today)
+        
+        # Конвертируем в local time (naive datetime для сравнения)
+        sunrise_local = sunrise.astimezone(local_tz).replace(tzinfo=None)
+        sunset_local = sunset.astimezone(local_tz).replace(tzinfo=None)
+        
+        # Применяем смещения
+        sunrise_adjusted = sunrise_local + timedelta(hours=SUNRISE_OFFSET_HOURS)
+        sunset_adjusted = sunset_local + timedelta(hours=SUNSET_OFFSET_HOURS)
+        
+        # Сейчас "день", если после рассвета и до заката
+        is_daytime = sunrise_adjusted <= now <= sunset_adjusted
+        
+        if semafor_config.DEBUG:
+            print(f"[DEBUG] Sunrise (local): {sunrise_local}, adjusted: {sunrise_adjusted}", file=sys.stderr)
+            print(f"[DEBUG] Sunset (local): {sunset_local}, adjusted: {sunset_adjusted}", file=sys.stderr)
+            print(f"[DEBUG] Now: {now}, Is daytime: {is_daytime}", file=sys.stderr)
+        
+        return BRIGHTNESS_DAY if is_daytime else BRIGHTNESS_NIGHT
+        
+    except Exception as e:
+        # Если не удалось рассчитать (например, полярный день/ночь),
+        # используем резервную логику по часам
+        if semafor_config.DEBUG:
+            print(f"[DEBUG] Sun calculation error: {e}, using fallback", file=sys.stderr)
+        current_hour = datetime.now().hour
+        is_night = current_hour >= 21 or current_hour < 6
+        return BRIGHTNESS_NIGHT if is_night else BRIGHTNESS_DAY
 
 # ================== openHASP TEMPLATES ==================
 

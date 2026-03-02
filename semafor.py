@@ -65,8 +65,10 @@ SUNRISE_OFFSET_HOURS = float(os.environ.get("SUNRISE_OFFSET_HOURS", "0.5"))  # �
 SUNSET_OFFSET_HOURS = float(os.environ.get("SUNSET_OFFSET_HOURS", "0.5"))    # Через 30 мин после заката
 
 # Яркость экрана (0-100)
-BRIGHTNESS_DAY = int(os.environ.get("BRIGHTNESS_DAY", "100"))    # Дневная яркость
-BRIGHTNESS_NIGHT = int(os.environ.get("BRIGHTNESS_NIGHT", "30")) # Ночная яркость
+BRIGHTNESS_DAY = int(os.environ.get("BRIGHTNESS_DAY", "70"))      # Дневная яркость
+BRIGHTNESS_NIGHT = int(os.environ.get("BRIGHTNESS_NIGHT", "5"))   # Ночная яркость
+BRIGHTNESS_TWILIGHT = int(os.environ.get("BRIGHTNESS_TWILIGHT",    # Яркость в сумерках
+    str((BRIGHTNESS_DAY + BRIGHTNESS_NIGHT) // 2)))                # По умолчанию - среднее между дневной и ночной
 
 
 # ================== LOG ==================
@@ -79,39 +81,61 @@ def log(msg: str):
 def get_backlight_value() -> int:
     """
     Определяет яркость подсветки на основе времени восхода/заката.
-    
+
     Использует библиотеку suntime для расчёта времени восхода и заката
     для заданных координат. Применяет смещения для точной настройки.
+    
+    Три режима яркости:
+    - День: между восходом и закатом (BRIGHTNESS_DAY)
+    - Сумерки: +/- время от восхода/заката (BRIGHTNESS_TWILIGHT)
+    - Ночь: остальное время (BRIGHTNESS_NIGHT)
     """
     from dateutil import tz
-    
+
     sun = Sun(semafor_config.LATITUDE, semafor_config.LONGITUDE)
     now = datetime.now()
     local_tz = tz.gettz(semafor_config.TIMEZONE)
     today = now.replace(tzinfo=local_tz)
-    
+
     try:
         sunrise = sun.get_sunrise_time(today)
         sunset = sun.get_sunset_time(today)
-        
+
         # Конвертируем в local time (naive datetime для сравнения)
         sunrise_local = sunrise.astimezone(local_tz).replace(tzinfo=None)
         sunset_local = sunset.astimezone(local_tz).replace(tzinfo=None)
-        
-        # Применяем смещения
+
+        # Применяем смещения для определения границ дня
         sunrise_adjusted = sunrise_local + timedelta(hours=SUNRISE_OFFSET_HOURS)
         sunset_adjusted = sunset_local + timedelta(hours=SUNSET_OFFSET_HOURS)
-        
-        # Сейчас "день", если после рассвета и до заката
-        is_daytime = sunrise_adjusted <= now <= sunset_adjusted
-        
+
+        # Определяем сумеречные зоны (до восхода и после заката)
+        twilight_start = sunrise_local - timedelta(hours=SUNRISE_OFFSET_HOURS)
+        twilight_end = sunset_local + timedelta(hours=SUNSET_OFFSET_HOURS)
+
         if semafor_config.DEBUG:
             print(f"[DEBUG] Sunrise (local): {sunrise_local}, adjusted: {sunrise_adjusted}", file=sys.stderr)
             print(f"[DEBUG] Sunset (local): {sunset_local}, adjusted: {sunset_adjusted}", file=sys.stderr)
-            print(f"[DEBUG] Now: {now}, Is daytime: {is_daytime}", file=sys.stderr)
-        
-        return BRIGHTNESS_DAY if is_daytime else BRIGHTNESS_NIGHT
-        
+            print(f"[DEBUG] Twilight start: {twilight_start}, Twilight end: {twilight_end}", file=sys.stderr)
+            print(f"[DEBUG] Now: {now}", file=sys.stderr)
+
+        # Определяем текущий режим
+        if sunrise_adjusted <= now <= sunset_adjusted:
+            # День
+            if semafor_config.DEBUG:
+                print(f"[DEBUG] Is daytime: True, brightness: {BRIGHTNESS_DAY}", file=sys.stderr)
+            return BRIGHTNESS_DAY
+        elif twilight_start <= now < sunrise_adjusted or sunset_adjusted < now <= twilight_end:
+            # Сумерки
+            if semafor_config.DEBUG:
+                print(f"[DEBUG] Is twilight: True, brightness: {BRIGHTNESS_TWILIGHT}", file=sys.stderr)
+            return BRIGHTNESS_TWILIGHT
+        else:
+            # Ночь
+            if semafor_config.DEBUG:
+                print(f"[DEBUG] Is nighttime: True, brightness: {BRIGHTNESS_NIGHT}", file=sys.stderr)
+            return BRIGHTNESS_NIGHT
+
     except Exception as e:
         # Если не удалось рассчитать (например, полярный день/ночь),
         # используем резервную логику по часам

@@ -4,7 +4,7 @@ Visual monitoring indicator for Zabbix using openHASP devices.
 
 Проект предназначен для отображения общего состояния Zabbix
 на одном или нескольких экранах openHASP в виде цветового индикатора
-(«светофора»).
+(«светофора») с автоматической регулировкой яркости по времени восхода/заката.
 
 ## Links
 
@@ -28,6 +28,7 @@ Visual monitoring indicator for Zabbix using openHASP devices.
 - Determines the **maximum problem severity**
 - Converts severity into a visual state (**green / yellow / red**)
 - Sends the resulting state to one or more **openHASP** devices via **MQTT**
+- **Automatically adjusts screen brightness** based on sunrise/sunset times
 
 The visual severity level matches what you see in the Zabbix web interface.
 
@@ -78,6 +79,14 @@ The visual severity level matches what you see in the Zabbix web interface.
 - Multiple devices can share the same template
 - Device-to-template mapping is defined **directly in the script**
 
+**Built-in templates:**
+
+| Template      | Description                                      |
+|---------------|--------------------------------------------------|
+| `default`     | Basic background color + idle off                |
+| `with_time`   | Background + time display + auto brightness      |
+| `widgets`     | Widget-based layout with time display            |
+
 This allows different openHASP screens to display the same Zabbix state
 using different layouts or UI logic.
 
@@ -93,7 +102,7 @@ using different layouts or UI logic.
 Python dependencies:
 
 ```bash
-pip install requests paho-mqtt python-dotenv
+pip install requests paho-mqtt python-dotenv suntime
 ````
 
 ---
@@ -110,14 +119,23 @@ nano .env
 
 Available environment variables:
 
-| Variable         | Description                      | Default Value                                                                  |
-| ---------------- | -------------------------------- | ------------------------------------------------------------------------------ |
-| ZABBIX_URL       | Zabbix API URL                   | [http://127.0.0.1:8080/api_jsonrpc.php](http://127.0.0.1:8080/api_jsonrpc.php) |
-| ZABBIX_API_TOKEN | Zabbix API token                 | YOUR_ZABBIX_API_TOKEN                                                          |
-| MQTT_BROKER      | MQTT broker address              | mqtt.example.com                                                               |
-| MQTT_USER        | MQTT username                    | mqtt_user                                                                      |
-| MQTT_PASS        | MQTT password                    | mqtt_pass                                                                      |
-| DEBUG            | Enable debug output (True/False) | True                                                                           |
+| Variable             | Description                          | Default Value                                                                  |
+| -------------------- | ------------------------------------ | ------------------------------------------------------------------------------ |
+| ZABBIX_URL           | Zabbix API URL                       | [http://127.0.0.1:8080/api_jsonrpc.php](http://127.0.0.1:8080/api_jsonrpc.php) |
+| ZABBIX_API_TOKEN     | Zabbix API token                     | YOUR_ZABBIX_API_TOKEN                                                          |
+| MQTT_BROKER          | MQTT broker address                  | mqtt.example.com                                                               |
+| MQTT_USER            | MQTT username                        | mqtt_user                                                                      |
+| MQTT_PASS            | MQTT password                        | mqtt_pass                                                                      |
+| IGNORE_ACKNOWLEDGED  | Ignore acknowledged problems         | True                                                                           |
+| DEBUG                | Enable debug output (True/False)     | True                                                                           |
+| LATITUDE             | Location latitude                    | 55.7558 (Moscow)                                                               |
+| LONGITUDE            | Location longitude                   | 37.6173 (Moscow)                                                               |
+| TIMEZONE             | Timezone name                        | Europe/Moscow                                                                  |
+| SUNRISE_OFFSET_HOURS | Offset from sunrise (hours)          | 0.5 (30 min after sunrise)                                                     |
+| SUNSET_OFFSET_HOURS  | Offset from sunset (hours)           | 0.5 (30 min after sunset)                                                      |
+| BRIGHTNESS_DAY       | Day brightness (0-100)               | 70                                                                             |
+| BRIGHTNESS_NIGHT     | Night brightness (0-100)             | 5                                                                              |
+| BRIGHTNESS_TWILIGHT  | Twilight brightness (0-100)          | 20 (auto-calculated as average)                                                |
 
 openHASP devices and their behavior templates are configured **inside the script**.
 
@@ -127,12 +145,13 @@ openHASP devices and their behavior templates are configured **inside the script
 
 1. Query Zabbix API for current problems
 2. Filter out:
-
    * disabled triggers
    * disabled hosts
+   * acknowledged problems (if `IGNORE_ACKNOWLEDGED=True`)
 3. Determine the maximum severity
 4. Convert severity to a color state
-5. Publish MQTT commands to openHASP devices according to their templates
+5. Calculate current brightness based on sunrise/sunset times
+6. Publish MQTT commands to openHASP devices according to their templates
 
 ---
 
@@ -172,6 +191,8 @@ Debug output includes:
 * detected problems
 * associated hosts
 * final severity and color decision
+* sunrise/sunset times and brightness calculation
+* openHASP template commands being sent
 
 ---
 
@@ -186,6 +207,7 @@ Debug output includes:
 * Определяет **максимальный уровень серьёзности**
 * Преобразует severity в цветовое состояние (**green / yellow / red**)
 * Отправляет итоговое состояние на экраны **openHASP** через **MQTT**
+* **Автоматически регулирует яркость экрана** по времени восхода/заката
 
 Отображаемый цвет соответствует состоянию в веб-интерфейсе Zabbix.
 
@@ -224,6 +246,14 @@ Debug output includes:
 * Несколько устройств могут использовать один и тот же шаблон
 * Привязка устройств к шаблонам задаётся **в коде скрипта**
 
+**Встроенные шаблоны:**
+
+| Шаблон        | Описание                                           |
+|---------------|----------------------------------------------------|
+| `default`     | Базовый цвет фона + отключение idle                |
+| `with_time`   | Фон + отображение времени + автояркость            |
+| `widgets`     | Виджетная раскладка с отображением времени         |
+
 Это позволяет легко менять внешний вид экранов
 без дублирования логики.
 
@@ -239,7 +269,7 @@ Debug output includes:
 Зависимости Python:
 
 ```bash
-pip install requests paho-mqtt python-dotenv
+pip install requests paho-mqtt python-dotenv suntime
 ```
 
 ---
@@ -256,14 +286,23 @@ nano .env
 
 Доступные переменные:
 
-| Переменная       | Описание           | Значение по умолчанию                                                          |
-| ---------------- | ------------------ | ------------------------------------------------------------------------------ |
-| ZABBIX_URL       | URL API Zabbix     | [http://127.0.0.1:8080/api_jsonrpc.php](http://127.0.0.1:8080/api_jsonrpc.php) |
-| ZABBIX_API_TOKEN | API-токен Zabbix   | YOUR_ZABBIX_API_TOKEN                                                          |
-| MQTT_BROKER      | Адрес MQTT брокера | mqtt.example.com                                                               |
-| MQTT_USER        | Пользователь MQTT  | mqtt_user                                                                      |
-| MQTT_PASS        | Пароль MQTT        | mqtt_pass                                                                      |
-| DEBUG            | Отладочный вывод   | True                                                                           |
+| Переменная           | Описание                         | Значение по умолчанию                                                          |
+| -------------------- | -------------------------------- | ------------------------------------------------------------------------------ |
+| ZABBIX_URL           | URL API Zabbix                   | [http://127.0.0.1:8080/api_jsonrpc.php](http://127.0.0.1:8080/api_jsonrpc.php) |
+| ZABBIX_API_TOKEN     | API-токен Zabbix                 | YOUR_ZABBIX_API_TOKEN                                                          |
+| MQTT_BROKER          | Адрес MQTT брокера               | mqtt.example.com                                                               |
+| MQTT_USER            | Пользователь MQTT                | mqtt_user                                                                      |
+| MQTT_PASS            | Пароль MQTT                      | mqtt_pass                                                                      |
+| IGNORE_ACKNOWLEDGED  | Игнорировать подтверждённые      | True                                                                           |
+| DEBUG                | Отладочный вывод                 | True                                                                           |
+| LATITUDE             | Широта местоположения            | 55.7558 (Москва)                                                               |
+| LONGITUDE            | Долгота местоположения           | 37.6173 (Москва)                                                               |
+| TIMEZONE             | Часовой пояс                     | Europe/Moscow                                                                  |
+| SUNRISE_OFFSET_HOURS | Смещение от восхода (часы)       | 0.5 (через 30 мин после восхода)                                               |
+| SUNSET_OFFSET_HOURS  | Смещение от заката (часы)        | 0.5 (через 30 мин после заката)                                                |
+| BRIGHTNESS_DAY       | Дневная яркость (0-100)          | 70                                                                             |
+| BRIGHTNESS_NIGHT     | Ночная яркость (0-100)           | 5                                                                              |
+| BRIGHTNESS_TWILIGHT  | Яркость в сумерках (0-100)       | 20 (автоматически — среднее между дневной и ночной)                            |
 
 Список openHASP устройств и их шаблоны задаются в коде.
 
@@ -273,9 +312,11 @@ nano .env
 
 1. Получение активных проблем из Zabbix
 2. Фильтрация отключённых объектов
-3. Определение максимального severity
-4. Преобразование severity в цвет
-5. Отправка команд на openHASP через MQTT
+3. Фильтрация подтверждённых проблем (если `IGNORE_ACKNOWLEDGED=True`)
+4. Определение максимального severity
+5. Преобразование severity в цвет
+6. Расчёт текущей яркости по времени восхода/заката
+7. Отправка команд на openHASP через MQTT
 
 ---
 
@@ -293,7 +334,30 @@ python3 semafor.py
 */1 * * * * cd /path/to/project && python3 semafor.py
 ```
 
+С явным указанием переменных окружения:
+
+```cron
+*/1 * * * * ZABBIX_URL=http://your-zabbix/api MQTT_BROKER=your-mqtt-broker python3 /path/to/semafor.py
+```
+
 ---
+
+## Отладочный режим
+
+Включите подробный вывод:
+
+```env
+DEBUG=True
+```
+
+Отладочный вывод включает:
+
+* Вызовы Zabbix API (общий уровень)
+* Обнаруженные проблемы
+* Привязку к хостам
+* Итоговый severity и решение о цвете
+* Время восхода/заката и расчёт яркости
+* Команды openHASP, отправляемые по MQTT
 
 ## License
 

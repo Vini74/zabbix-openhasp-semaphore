@@ -70,6 +70,11 @@ BRIGHTNESS_NIGHT = int(os.environ.get("BRIGHTNESS_NIGHT", "5"))   # Ночная
 BRIGHTNESS_TWILIGHT = int(os.environ.get("BRIGHTNESS_TWILIGHT",    # Яркость в сумерках
     str((BRIGHTNESS_DAY + BRIGHTNESS_NIGHT) // 2)))                # По умолчанию - среднее между дневной и ночной
 
+# Коэффициенты коррекции яркости для разных цветов (умножаются на базовую яркость времени суток)
+BRIGHTNESS_GREEN_FACTOR = float(os.environ.get("BRIGHTNESS_GREEN_FACTOR", "1.0"))
+BRIGHTNESS_YELLOW_FACTOR = float(os.environ.get("BRIGHTNESS_YELLOW_FACTOR", "0.8"))
+BRIGHTNESS_RED_FACTOR = float(os.environ.get("BRIGHTNESS_RED_FACTOR", "1.0"))
+
 
 # ================== SEVERITY COLORS ==================
 
@@ -103,9 +108,9 @@ def log(msg: str):
         print(f"[DEBUG] {msg}", file=sys.stderr)
 
 
-def get_backlight_value() -> int:
+def get_backlight_value(color: str = "green") -> int:
     """
-    Определяет яркость подсветки на основе времени восхода/заката.
+    Определяет яркость подсветки на основе времени восхода/заката и цвета.
 
     Использует библиотеку suntime для расчёта времени восхода и заката
     для заданных координат. Применяет смещения для точной настройки.
@@ -114,6 +119,11 @@ def get_backlight_value() -> int:
     - День: между восходом и закатом (BRIGHTNESS_DAY)
     - Сумерки: +/- время от восхода/заката (BRIGHTNESS_TWILIGHT)
     - Ночь: остальное время (BRIGHTNESS_NIGHT)
+
+    Цвет влияет на итоговую яркость через коэффициенты:
+    - green: BRIGHTNESS_GREEN_FACTOR
+    - yellow: BRIGHTNESS_YELLOW_FACTOR
+    - red: BRIGHTNESS_RED_FACTOR
     """
     from dateutil import tz
 
@@ -147,19 +157,38 @@ def get_backlight_value() -> int:
         # Определяем текущий режим
         if sunrise_adjusted <= now <= sunset_adjusted:
             # День
-            if semafor_config.DEBUG:
-                print(f"[DEBUG] Is daytime: True, brightness: {BRIGHTNESS_DAY}", file=sys.stderr)
-            return BRIGHTNESS_DAY
+            base_brightness = BRIGHTNESS_DAY
+            mode = "day"
         elif twilight_start <= now < sunrise_adjusted or sunset_adjusted < now <= twilight_end:
             # Сумерки
-            if semafor_config.DEBUG:
-                print(f"[DEBUG] Is twilight: True, brightness: {BRIGHTNESS_TWILIGHT}", file=sys.stderr)
-            return BRIGHTNESS_TWILIGHT
+            base_brightness = BRIGHTNESS_TWILIGHT
+            mode = "twilight"
         else:
             # Ночь
-            if semafor_config.DEBUG:
-                print(f"[DEBUG] Is nighttime: True, brightness: {BRIGHTNESS_NIGHT}", file=sys.stderr)
-            return BRIGHTNESS_NIGHT
+            base_brightness = BRIGHTNESS_NIGHT
+            mode = "night"
+
+        # Выбираем коэффициент для цвета
+        if color == "green":
+            factor = BRIGHTNESS_GREEN_FACTOR
+        elif color == "yellow":
+            factor = BRIGHTNESS_YELLOW_FACTOR
+        elif color == "red":
+            factor = BRIGHTNESS_RED_FACTOR
+        else:
+            factor = 1.0
+
+        # Применяем коэффициент и ограничиваем диапазон 0-100
+        adjusted = int(round(base_brightness * factor))
+        if adjusted < 0:
+            adjusted = 0
+        elif adjusted > 100:
+            adjusted = 100
+
+        if semafor_config.DEBUG:
+            print(f"[DEBUG] Is {mode}: True, base brightness: {base_brightness}, color: {color}, factor: {factor}, final brightness: {adjusted}", file=sys.stderr)
+
+        return adjusted
 
     except Exception as e:
         # Если не удалось рассчитать (например, полярный день/ночь),
@@ -168,7 +197,25 @@ def get_backlight_value() -> int:
             print(f"[DEBUG] Sun calculation error: {e}, using fallback", file=sys.stderr)
         current_hour = datetime.now().hour
         is_night = current_hour >= 21 or current_hour < 6
-        return BRIGHTNESS_NIGHT if is_night else BRIGHTNESS_DAY
+        base_brightness = BRIGHTNESS_NIGHT if is_night else BRIGHTNESS_DAY
+        
+        # Применяем коэффициент цвета
+        if color == "green":
+            factor = BRIGHTNESS_GREEN_FACTOR
+        elif color == "yellow":
+            factor = BRIGHTNESS_YELLOW_FACTOR
+        elif color == "red":
+            factor = BRIGHTNESS_RED_FACTOR
+        else:
+            factor = 1.0
+        
+        adjusted = int(round(base_brightness * factor))
+        if adjusted < 0:
+            adjusted = 0
+        elif adjusted > 100:
+            adjusted = 100
+        
+        return adjusted
 
 # ================== openHASP TEMPLATES ==================
 
@@ -204,7 +251,7 @@ OPENHASP_TEMPLATES = {
         ),
         lambda base, color, now, text_color: (
             f"{base}/backlight",
-            get_backlight_value()
+            get_backlight_value(color)
         ),
     ],
 

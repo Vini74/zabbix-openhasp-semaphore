@@ -1,6 +1,48 @@
 # Конфиденциальные данные
 .env
 config.json
+OpenHASP/config.json
+.env.*
+*.env
+
+# Криптографические ключи и сертификаты
+*.key
+*.pem
+*.crt
+*.cert
+*.secret
+*.priv
+*.pfx
+*.p12
+
+# Файлы баз данных
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.backup
+
+# Логи и временные файлы
+logs/
+tmp/
+temp/
+*.log
+*.pid
+*.core
+
+# Файлы дампов и резервных копий
+*.bak
+*.back
+*.old
+*.orig
+*.rej
+
+# Файлы сборки и дистрибуции
+dist/
+build/
+*.egg-info/
+*.egg
+*.whl
 
 # Временные файлы Python
 __pycache__/
@@ -27,6 +69,7 @@ coverage.xml
 .idea/
 *.swp
 *.swo
+.codeassistant/
 
 # Операционная система
 .DS_Store
